@@ -102,155 +102,466 @@
 
 
 (function () {
-
     "use strict";
 
-    // Run only on the Student Marks page
-    if (!window.location.href.startsWith(
+    // Only run on Student Marks
+    if (!location.href.startsWith(
         "https://flexstudent.nu.edu.pk/Student/StudentMarks"
-    )) {
+    )) return;
+
+    // Prevent duplicate initialization
+    if (window.__gradeCalculatorInitialized) return;
+    window.__gradeCalculatorInitialized = true;
+
+    const portlet = document.querySelector(".m-portlet");
+
+    if (!portlet) {
+        window.__gradeCalculatorInitialized = false;
         return;
     }
 
-    // Prevent duplicate execution
-    if (window.__gradeCalculatorRunning) return;
-    window.__gradeCalculatorRunning = true;
+    // ----------------------------------
+    // CREATE EXISTING GRADE ELEMENTS
+    // ----------------------------------
 
-	//Get the div to display the output.
-	const portlet = document.querySelector('.m-portlet');
+    function getOrCreate(tag, type) {
+        let element = portlet.querySelector(
+            `${tag}[data-type="${type}"]`
+        );
 
-	//Get all the elements of output div.
-	let totalAbsolutesElement = portlet.querySelector('h5[data-type="total"]');
-	let obtainedAbsolutesElement = portlet.querySelector('h5[data-type="obtained"]');
-	let averageAbsolutesElement = portlet.querySelector('h5[data-type="classAverage"]');
-	let redirectButton = portlet.querySelector('button[data-type="redirect"]');
+        if (!element) {
+            element = document.createElement(tag);
+            element.setAttribute("data-type", type);
+            element.style.color = "white";
+            element.style.marginLeft = "30px";
+            portlet.appendChild(element);
+        }
 
-	//If any element don't exist then add it into output div.
-	if (!isElementExist(totalAbsolutesElement)) {
-		totalAbsolutesElement = createElement("h5", "data-type", "total");
-		totalAbsolutesElement.style.marginTop = '7px';
-		portlet.appendChild(totalAbsolutesElement);
-	}
+        return element;
+    }
 
-	if (!isElementExist(obtainedAbsolutesElement)) {
-		obtainedAbsolutesElement = createElement("h5", "data-type", "obtained");
-		portlet.appendChild(obtainedAbsolutesElement);
-	}
+    const totalElement = getOrCreate("h5", "total");
+    const obtainedElement = getOrCreate("h5", "obtained");
+    const averageElement = getOrCreate("h5", "classAverage");
 
-	if (!isElementExist(averageAbsolutesElement)) {
-		averageAbsolutesElement = createElement("h5", "data-type", "classAverage");
-		portlet.appendChild(averageAbsolutesElement);
-	}
+    totalElement.style.marginTop = "7px";
 
-	if (!isElementExist(redirectButton)) {
-		redirectButton = document.createElement('button');
-		redirectButton.setAttribute('data-type', 'redirect');
-		redirectButton.style.color = 'black';
-		redirectButton.style.backgroundColor = 'white';
-		redirectButton.style.border = 'none';
-		redirectButton.style.borderRadius = '5px';
-		redirectButton.style.padding = '10px 20px';
-		redirectButton.style.fontSize = '16px';
-		redirectButton.style.fontWeight = 'bold';
-		redirectButton.textContent = 'Redirect to Grade Calculator';
+   
+    
 
-		var containerDiv = document.createElement('div');
-		containerDiv.style.display = 'flex';
-		containerDiv.style.justifyContent = 'center';
-		containerDiv.style.alignItems = 'center';
-		containerDiv.style.height = '100%';
-		containerDiv.appendChild(redirectButton);
+    // ----------------------------------
+    // ANALYTICS CONTAINER
+    // ----------------------------------
 
-		redirectButton.addEventListener('click', function () {
-			window.open('https://fastnugrader.netlify.app/', '_blank');
-		});
+    let analytics = document.getElementById(
+        "subject-performance-analytics"
+    );
 
-		portlet.appendChild(containerDiv);
-	}
+    if (!analytics) {
+        analytics = document.createElement("div");
+        analytics.id = "subject-performance-analytics";
 
-	//Get the current opened subject.
-	const currentSubjectDiv = document.querySelector('.tab-pane.active');
+        Object.assign(analytics.style, {
+            marginTop: "20px",
+            padding: "20px",
+            backgroundColor: "#ffffff",
+            borderRadius: "10px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+            color: "#333",
+            width: "100%",
+            boxSizing: "border-box"
+        });
 
-	let totalWeightage = 0;
-	let totalObtainedAbsolutes = 0;
-	let totalAverageAbsolutes = 0;
+        portlet.appendChild(analytics);
+    }
 
-	//Get all the evaluation tables for current subject. i.e Assignment, Quiz.
-	let tables = currentSubjectDiv.querySelectorAll('.sum_table');
+    // ----------------------------------
+    // HELPER FUNCTIONS
+    // ----------------------------------
 
-	//Iterate over all table for current subject.
-	for (let i = 0; i < tables.length; i++) {
-		const table = tables[i];
+    function getNumber(element) {
+        if (!element) return NaN;
 
-		//Get all rows for this table.
-		const tableRows = table.querySelectorAll(".calculationrow");
-		let rowsTotalAverageAbsolutes = 0
-		let tableWeightageSum = 0
+        return parseFloat(
+            element.textContent.replace(/,/g, "").trim()
+        );
+    }
 
-		//Iterate over all the rows for this table
-		for (let j = 0; j < tableRows.length; j++) {
+    function getAssessmentName(table, index) {
 
-			const rowWeight = tableRows[j].querySelectorAll(".weightage");
-			const rowAverageMarks = tableRows[j].querySelectorAll(".AverageMarks");
-			const rowTotalMarks = tableRows[j].querySelectorAll(".GrandTotal");
+        // Check explicit category attributes first
+        const explicitName =
+            table.getAttribute("data-category") ||
+            table.getAttribute("data-type") ||
+            table.getAttribute("aria-label");
 
-			if (isEmptyOrZero(rowWeight) || isEmptyOrZero(rowAverageMarks) || isEmptyOrZero(rowTotalMarks)) {
-				continue;
-			}
+        if (explicitName) return explicitName.trim();
 
-			tableWeightageSum += parseFloat(rowWeight[0].textContent);
-			const currentRowAverageAbsolutes = (parseFloat(rowAverageMarks[0].textContent) / parseFloat(rowTotalMarks[0].textContent)) * parseFloat(rowWeight[0].textContent);
-			rowsTotalAverageAbsolutes +=  currentRowAverageAbsolutes;
-		}
+        // Check table caption
+        const caption = table.querySelector("caption");
 
-		//Get the last row of each table. Which is the "total" row.
-		const totalSection = table.querySelectorAll('[class*="totalColumn_"]');
+        if (caption && caption.textContent.trim()) {
+            return caption.textContent.trim();
+        }
 
-		//Only one element should be returned
-		if (totalSection.length !== 1) {
-			continue;
-		}
+        // Check nearby headings
+        let previous = table.previousElementSibling;
 
+        while (previous) {
 
-		const tableTotalWeigtage = totalSection[0].querySelectorAll(".totalColweightage");
-		const tableTotalObtainedAbsolutes = totalSection[0].querySelectorAll(".totalColObtMarks");
+            if (/^H[1-6]$/.test(previous.tagName)) {
+                const heading = previous.textContent.trim();
 
-		//Only one element should be returned from both variables
-		if (tableTotalObtainedAbsolutes.length !== 1 || tableTotalWeigtage.length !== 1) {
-			continue;
-		}
+                if (heading) return heading;
+            }
 
-		//Handle best off average.
-		if (tableWeightageSum != 0) {
-			rowsTotalAverageAbsolutes = rowsTotalAverageAbsolutes / tableWeightageSum * parseFloat(tableTotalWeigtage[0].textContent);
-			totalAverageAbsolutes += rowsTotalAverageAbsolutes;
-		}
+            previous = previous.previousElementSibling;
+        }
 
-		totalWeightage += parseFloat(tableTotalWeigtage[0].textContent)
-		totalObtainedAbsolutes += parseFloat(tableTotalObtainedAbsolutes[0].textContent)
-	}
+        // Check enclosing section heading
+        const section = table.closest(
+            "section, .panel, .card, .portlet"
+        );
 
-	const finalTotalAverageAbsolutes = isNaN(totalAverageAbsolutes) ? "Cannot Calculate, Missing Data" : totalAverageAbsolutes.toFixed(2)
+        if (section) {
+            const heading = section.querySelector(
+                "h1, h2, h3, h4, h5, h6"
+            );
 
-	totalAbsolutesElement.textContent = 'Total Absolutes: ' + totalWeightage.toFixed(2);
-	obtainedAbsolutesElement.textContent = 'Obtained Absolutes: ' + totalObtainedAbsolutes.toFixed(2);
-	averageAbsolutesElement.textContent = 'Class Average: ' + finalTotalAverageAbsolutes;
+            if (heading && heading.textContent.trim()) {
+                return heading.textContent.trim();
+            }
+        }
 
-	chrome.runtime.sendMessage('pageChange');
+        return "Assessment " + (index + 1);
+    }
+
+    function isEmptyOrZero(row) {
+        return !row.length ||
+            row[0].textContent.trim() === "0";
+    }
+
+    // ----------------------------------
+    // MAIN UPDATE FUNCTION
+    // ----------------------------------
+
+    function updateSubjectPerformance() {
+
+        const currentSubject = document.querySelector(
+            ".tab-pane.active"
+        );
+
+        if (!currentSubject) return;
+
+        const tables = currentSubject.querySelectorAll(
+            ".sum_table"
+        );
+
+        let totalWeightage = 0;
+        let totalObtained = 0;
+        let totalAverage = 0;
+
+        const categories = {};
+
+        tables.forEach(function (table, index) {
+
+            const rows = table.querySelectorAll(
+                ".calculationrow"
+            );
+
+            let rowsAverage = 0;
+            let weightageSum = 0;
+
+            // Preserve your original class-average calculation
+            rows.forEach(function (row) {
+
+                const weight = row.querySelectorAll(".weightage");
+                const average = row.querySelectorAll(".AverageMarks");
+                const grandTotal = row.querySelectorAll(".GrandTotal");
+
+                if (
+                    isEmptyOrZero(weight) ||
+                    isEmptyOrZero(average) ||
+                    isEmptyOrZero(grandTotal)
+                ) return;
+
+                const w = getNumber(weight[0]);
+                const a = getNumber(average[0]);
+                const g = getNumber(grandTotal[0]);
+
+                if (
+                    !Number.isFinite(w) ||
+                    !Number.isFinite(a) ||
+                    !Number.isFinite(g) ||
+                    g === 0
+                ) return;
+
+                weightageSum += w;
+                rowsAverage += (a / g) * w;
+            });
+
+            const totalSections = table.querySelectorAll(
+                '[class*="totalColumn_"]'
+            );
+
+            if (totalSections.length !== 1) return;
+
+            const section = totalSections[0];
+
+            const weightElement = section.querySelector(
+                ".totalColweightage"
+            );
+
+            const obtainedElement = section.querySelector(
+                ".totalColObtMarks"
+            );
+
+            if (!weightElement || !obtainedElement) return;
+
+            const weight = getNumber(weightElement);
+            const obtained = getNumber(obtainedElement);
+
+            if (
+                !Number.isFinite(weight) ||
+                !Number.isFinite(obtained) ||
+                weight <= 0
+            ) return;
+
+            if (weightageSum > 0) {
+                totalAverage +=
+                    (rowsAverage / weightageSum) * weight;
+            }
+
+            totalWeightage += weight;
+            totalObtained += obtained;
+
+            // Identify assessment category
+            const name = getAssessmentName(table, index);
+
+            // Group multiple tables with the same name
+            if (!categories[name]) {
+                categories[name] = {
+                    obtained: 0,
+                    weightage: 0
+                };
+            }
+
+            categories[name].obtained += obtained;
+            categories[name].weightage += weight;
+        });
+
+        // ----------------------------------
+        // UPDATE ORIGINAL GRADE CALCULATOR
+        // ----------------------------------
+
+        totalElement.textContent =
+            "Total Absolutes: " + totalWeightage.toFixed(2);
+
+        obtainedElement.textContent =
+            "Obtained Absolutes: " + totalObtained.toFixed(2);
+
+        averageElement.textContent =
+            "Class Average: " +
+            (Number.isFinite(totalAverage)
+                ? totalAverage.toFixed(2)
+                : "Cannot Calculate, Missing Data");
+
+        // ----------------------------------
+        // UPDATE ANALYTICS
+        // ----------------------------------
+
+        analytics.replaceChildren();
+
+        function addText(tag, text, parent, styles = {}) {
+            const element = document.createElement(tag);
+
+            element.textContent = text;
+
+            Object.assign(element.style, styles);
+
+            parent.appendChild(element);
+
+            return element;
+        }
+
+        addText(
+            "h4",
+            "Subject Performance Analytics",
+            analytics,
+            { marginBottom: "18px" }
+        );
+
+        // Overall performance
+        const percentage = totalWeightage > 0
+            ? (totalObtained / totalWeightage) * 100
+            : 0;
+
+        const summary = document.createElement("div");
+
+        Object.assign(summary.style, {
+            backgroundColor: "#f1f5f9",
+            padding: "15px",
+            borderRadius: "8px",
+            marginBottom: "20px"
+        });
+
+        addText(
+            "h5",
+            "Overall Subject Performance",
+            summary
+        );
+
+        addText(
+            "p",
+            totalObtained.toFixed(2) +
+            " / " +
+            totalWeightage.toFixed(2),
+            summary
+        );
+
+        addText(
+            "h2",
+            percentage.toFixed(2) + "%",
+            summary,
+            {
+                color: "#2563eb",
+                margin: "8px 0"
+            }
+        );
+
+        analytics.appendChild(summary);
+
+        addText(
+            "h5",
+            "Assessment Category Breakdown",
+            analytics,
+            { marginBottom: "15px" }
+        );
+
+        const categoryNames = Object.keys(categories);
+
+        if (categoryNames.length === 0) {
+            addText(
+                "p",
+                "No assessment data available for this subject.",
+                analytics
+            );
+        }
+
+        categoryNames.forEach(function (name) {
+
+            const category = categories[name];
+
+            const categoryPercentage =
+                (category.obtained / category.weightage) * 100;
+
+            const wrapper = document.createElement("div");
+
+            wrapper.style.marginBottom = "20px";
+
+            addText(
+                "strong",
+                name,
+                wrapper,
+                { display: "block", marginBottom: "5px" }
+            );
+
+            addText(
+                "small",
+                category.obtained.toFixed(2) +
+                " / " +
+                category.weightage.toFixed(2) +
+                " (" +
+                categoryPercentage.toFixed(2) +
+                "%)",
+                wrapper,
+                {
+                    display: "block",
+                    marginBottom: "7px",
+                    color: "#555"
+                }
+            );
+
+            const background = document.createElement("div");
+
+            Object.assign(background.style, {
+                width: "100%",
+                height: "12px",
+                backgroundColor: "#e5e7eb",
+                borderRadius: "10px",
+                overflow: "hidden"
+            });
+
+            const fill = document.createElement("div");
+
+            Object.assign(fill.style, {
+                width: Math.max(
+                    0,
+                    Math.min(100, categoryPercentage)
+                ) + "%",
+                height: "100%",
+                borderRadius: "10px",
+                backgroundColor:
+                    categoryPercentage >= 80 ? "#16a34a" :
+                    categoryPercentage >= 60 ? "#2563eb" :
+                    categoryPercentage >= 40 ? "#f59e0b" :
+                    "#dc2626"
+            });
+
+            background.appendChild(fill);
+            wrapper.appendChild(background);
+            analytics.appendChild(wrapper);
+        });
+    }
+
+    // ----------------------------------
+    // DETECT SUBJECT TAB CHANGES
+    // ----------------------------------
+
+    let updateScheduled = false;
+
+    function scheduleUpdate() {
+        if (updateScheduled) return;
+
+        updateScheduled = true;
+
+        requestAnimationFrame(function () {
+            updateScheduled = false;
+            updateSubjectPerformance();
+        });
+    }
+
+    // Initial calculation
+    updateSubjectPerformance();
+
+    // Bootstrap tab event
+    document.addEventListener(
+        "shown.bs.tab",
+        scheduleUpdate
+    );
+
+    // Detect tab clicks
+    document.addEventListener("click", function (event) {
+
+        if (
+            event.target.closest(
+                '[data-toggle="tab"], [data-bs-toggle="tab"]'
+            )
+        ) {
+            setTimeout(scheduleUpdate, 100);
+        }
+    });
+
+    // Detect active subject class changes
+    const subjectTabs = document.querySelectorAll(".tab-pane");
+
+    const observer = new MutationObserver(scheduleUpdate);
+
+    subjectTabs.forEach(function (tab) {
+        observer.observe(tab, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+
 })();
-
-function isElementExist(element) {
-	return element !== null && element !== undefined;
-}
-
-function createElement(tag, attribute, value) {
-	const element = document.createElement(tag);
-	element.setAttribute(attribute, value);
-	element.style.color = 'white';
-	element.style.marginLeft = '30px';
-	return element;
-}
-
-function isEmptyOrZero(row) {
-	return row.length === 0 || row[0].textContent.trim() === "0";
-}
