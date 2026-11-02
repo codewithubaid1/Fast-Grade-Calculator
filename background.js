@@ -3,7 +3,7 @@ chrome.action.onClicked.addListener((tab) => {
   if (tab.url.startsWith('https://flexstudent.nu.edu.pk/Student/StudentMarks')) {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      files: ['inject.js']
+      files: ['content.js']
     });
   }
 });
@@ -17,7 +17,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   ) {
     chrome.scripting.executeScript({
       target: { tabId: tabId },
-      files: ['inject.js']
+      files: ['content.js']
     });
   }
 });
@@ -27,7 +27,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   if (message === 'pageChange' && sender.tab?.id) {
     chrome.scripting.executeScript({
       target: { tabId: sender.tab.id },
-      files: ['inject.js']
+      files: ['content.js']
     });
   }
 });
