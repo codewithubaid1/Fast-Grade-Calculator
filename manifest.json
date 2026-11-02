@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Grade Calculaotr",
+  "name": "Grade Calculator",
   "version": "1.0",
   "description": "Grade Calcuator by ubaidullah.",
-  "permissions": [],
+  "permissions": [
+    "scripting",
+    "tabs"
+  ],
   "host_permissions": [
     "https://*/*",
     "http://*/*"
@@ -11,6 +14,7 @@
   "background": {
     "service_worker": "background.js"
   },
+  "action": {},
   "content_scripts": [
     {
       "matches": [

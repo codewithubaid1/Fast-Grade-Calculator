@@ -103,6 +103,19 @@
 
 (function () {
 
+    "use strict";
+
+    // Run only on the Student Marks page
+    if (!window.location.href.startsWith(
+        "https://flexstudent.nu.edu.pk/Student/StudentMarks"
+    )) {
+        return;
+    }
+
+    // Prevent duplicate execution
+    if (window.__gradeCalculatorRunning) return;
+    window.__gradeCalculatorRunning = true;
+
 	//Get the div to display the output.
 	const portlet = document.querySelector('.m-portlet');
 
