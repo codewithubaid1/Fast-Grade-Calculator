@@ -1,3 +1,4 @@
+//Created by ubaid
 // When the extension icon is clicked
 chrome.action.onClicked.addListener((tab) => {
   if (tab.url.startsWith('https://flexstudent.nu.edu.pk/Student/StudentMarks')) {
